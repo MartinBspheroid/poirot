@@ -173,7 +173,7 @@ class SidebarService {
             
             // Use existing getTranslation method to get the processed value (handles both simple and complex)
             const translationValue = this.translationService.getTranslation(translations, key);
-            if (!translationValue) {
+            if (translationValue == null) {
                 vscode.window.showWarningMessage(`Key "${key}" not found in translation file`);
                 return;
             }
