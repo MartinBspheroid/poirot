@@ -144,8 +144,8 @@ export function load() {
 
 ## Supported File Types
 
-- JavaScript (`.js`)
-- TypeScript (`.ts`)
+- JavaScript (`.js`/`.jsx`)
+- TypeScript (`.ts`/`.tsx`)
 - Svelte (`.svelte`)
 
 ## Quick Setup

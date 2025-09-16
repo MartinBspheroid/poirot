@@ -275,7 +275,9 @@ class ExtensionActivator {
         const codeLensDisposable = vscode.languages.registerCodeLensProvider(
             [
                 { language: 'javascript', scheme: 'file' },
+                { language: 'javascriptreact', scheme: 'file' },
                 { language: 'typescript', scheme: 'file' },
+                { language: 'typescriptreact', scheme: 'file' },
                 { language: 'svelte', scheme: 'file' }
             ],
             codeLensProvider
