@@ -2,6 +2,9 @@
 
 All notable changes to the "elementarywatson" extension will be documented in this file.
 
+## [0.5.1] - 2025-09-16 
+  - Navigate to translation value when value is empty string
+
 ## [0.5.0] - 2025-09-16 
   - Typescript/javascript with jsx support
 
