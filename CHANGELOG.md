@@ -2,7 +2,11 @@
 
 All notable changes to the "elementarywatson" extension will be documented in this file.
 
-## [Unreleased]
+## [0.5.0] - 2025-09-16 
+  - Typescript/javascript with jsx support
+
+## [0.4.0] - 2025-08-26 
+  - Nested keys support
 
 ## [0.3.0] - 2025-07-22
 
