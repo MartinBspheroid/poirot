@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const { TranslationService } = require('../translation/service');
 const { LocaleService } = require('../locale/service');
+const { ProjectService } = require('../project/service');
 
 /**
  * Service for managing sidebar translation data
@@ -9,6 +10,7 @@ class SidebarService {
     constructor() {
         this.translationService = new TranslationService();
         this.localeService = new LocaleService();
+        this.projectService = new ProjectService();
     }
 
     /**
@@ -24,6 +26,7 @@ class SidebarService {
             if (!workspaceFolder) return [];
 
             const workspacePath = workspaceFolder.uri.fsPath;
+            const projectPath = this.projectService.getActiveProjectPath(workspacePath);
             const text = document.getText();
 
             // Find all m.methodName() calls in the current file
@@ -32,7 +35,7 @@ class SidebarService {
 
             // Get available locales from inlang settings or fallback
             const availableLocales = await this.getAvailableLocales(workspacePath);
-            
+
             // Create translation data structure
             const translationData = [];
 
@@ -45,13 +48,13 @@ class SidebarService {
                 for (const locale of availableLocales) {
                     const translations = await this.translationService.loadTranslationsForLocale(workspacePath, locale);
                     const translationValue = translations ? this.translationService.getTranslation(translations, call.methodName) : null;
-                    
+
                     // Only add locale data if the translation exists (not null/undefined)
                     if (translationValue !== null) {
                         keyData.locales.push({
                             locale,
                             value: translationValue,
-                            workspacePath
+                            workspacePath: projectPath
                         });
                     }
                 }
@@ -77,23 +80,24 @@ class SidebarService {
      */
     async getAvailableLocales(workspacePath) {
         try {
+            const projectPath = this.projectService.getActiveProjectPath(workspacePath);
             const inlangSettings = this.localeService.loadInlangSettings(workspacePath);
-            
+
             if (inlangSettings && inlangSettings.locales) {
                 return inlangSettings.locales;
             }
 
-            // Fallback: try to detect existing locale files
+            // Fallback: try to detect existing locale files in project directory
             const fs = require('fs');
             const path = require('path');
-            
-            const messagesDir = path.join(workspacePath, 'messages');
+
+            const messagesDir = path.join(projectPath, 'messages');
             if (fs.existsSync(messagesDir)) {
                 const files = fs.readdirSync(messagesDir);
                 const locales = files
                     .filter(file => file.endsWith('.json'))
                     .map(file => path.basename(file, '.json'));
-                
+
                 if (locales.length > 0) {
                     return locales;
                 }
@@ -118,7 +122,7 @@ class SidebarService {
     async openTranslationFile(workspacePath, locale, key) {
         try {
             const translationPath = this.localeService.resolveTranslationPath(workspacePath, locale);
-            
+
             // Check if file exists
             const fs = require('fs');
             if (!fs.existsSync(translationPath)) {
@@ -338,45 +342,46 @@ class SidebarService {
             if (!document) {
                 return false;
             }
-            
+
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
             if (!workspaceFolder) {
                 return false;
             }
 
             const workspacePath = workspaceFolder.uri.fsPath;
+            const projectPath = this.projectService.getActiveProjectPath(workspacePath);
             const filePath = document.uri.fsPath;
-            
+
             // Get the path pattern for translation files
             const pathPattern = this.localeService.getTranslationPathPattern(workspacePath);
-            
+
             const path = require('path');
-            const relativePath = path.relative(workspacePath, filePath);
-            
+            const relativePath = path.relative(projectPath, filePath);
+
             // Normalize paths for comparison (handle Windows paths)
             const normalizedRelativePath = relativePath.replace(/\\/g, '/');
-            
+
             // Use the actual available locales from configuration instead of hardcoding
             const availableLocales = await this.getAvailableLocales(workspacePath);
-            
+
             for (const locale of availableLocales) {
                 let expectedPath = pathPattern.replace('{locale}', locale);
-                
+
                 // Handle different path formats
                 if (expectedPath.startsWith('./')) {
                     expectedPath = expectedPath.substring(2);
                 }
-                
+
                 // Normalize expected path
                 expectedPath = expectedPath.replace(/\\/g, '/');
-                
+
                 if (normalizedRelativePath === expectedPath) {
                     return true;
                 }
             }
-            
+
             return false;
-            
+
         } catch (error) {
             console.error('Error checking if file is translation file:', error);
             return false;

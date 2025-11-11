@@ -1,5 +1,6 @@
 const { TranslationRepository } = require('./repository');
 const { LocaleService } = require('../locale/service');
+const { ProjectService } = require('../project/service');
 
 /**
  * Service for processing translation calls and coordinating translation loading
@@ -8,6 +9,7 @@ class TranslationService {
     constructor() {
         this.translationRepository = new TranslationRepository();
         this.localeService = new LocaleService();
+        this.projectService = new ProjectService();
     }
 
     /**

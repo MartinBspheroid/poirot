@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const { TranslationService } = require('../translation/service');
 const { LocaleService } = require('../locale/service');
+const { ProjectService } = require('../project/service');
 const { EditorDecorator } = require('./decorator');
 const { TranslationCodeLensProvider } = require('./codelens');
 
@@ -11,6 +12,7 @@ class EditorService {
     constructor() {
         this.translationService = new TranslationService();
         this.localeService = new LocaleService();
+        this.projectService = new ProjectService();
         this.editorDecorator = new EditorDecorator();
         this.codeLensProvider = new TranslationCodeLensProvider();
     }
@@ -42,6 +44,8 @@ class EditorService {
             const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
             if (!workspaceFolder) return;
 
+            const workspacePath = workspaceFolder.uri.fsPath;
+
             // Find all m.methodName() calls
             const translationCalls = this.translationService.findTranslationCalls(text);
             if (translationCalls.length === 0) {
@@ -53,16 +57,16 @@ class EditorService {
             // Load translations using the current locale
             const currentLocale = this.localeService.getCurrentLocale();
             const translations = await this.translationService.loadTranslationsForLocale(
-                workspaceFolder.uri.fsPath, 
+                workspacePath,
                 currentLocale
             );
 
             // Process translation calls to get resolved values with warning states
             // Note: We process even if translations is null to show warning labels
             const translationResults = await this.translationService.processTranslationCallsWithWarnings(
-                translationCalls, 
-                translations || {}, 
-                workspaceFolder.uri.fsPath,
+                translationCalls,
+                translations || {},
+                workspacePath,
                 currentLocale
             );
             

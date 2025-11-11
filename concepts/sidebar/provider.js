@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const { LocaleService } = require('../locale/service');
 const { TranslationService } = require('../translation/service');
+const { ProjectService } = require('../project/service');
 
 /**
  * Tree data provider for the ElementaryWatson sidebar
@@ -10,11 +11,14 @@ class SidebarTreeProvider {
         this.sidebarService = sidebarService;
         this.localeService = new LocaleService();
         this.translationService = new TranslationService();
+        this.projectService = new ProjectService();
         this._onDidChangeTreeData = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._onDidChangeTreeData.event;
         this.translationData = [];
         this.currentFilePath = null;
         this.clearTimeout = null; // Debounce clearing to handle editor switching
+        this.availableProjects = [];
+        this.activeProjectPath = null;
     }
 
     /**
@@ -64,6 +68,13 @@ class SidebarTreeProvider {
             this.clearTimeout = null;
         }
         
+        // Update available projects and active project
+        if (vscode.workspace.workspaceFolders?.[0]) {
+            const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            this.availableProjects = await this.projectService.scanForProjects(workspacePath);
+            this.activeProjectPath = this.projectService.getActiveProjectPath(workspacePath);
+        }
+        
         if (document) {
             const isTransFile = await this.sidebarService.isTranslationFile(document);
             
@@ -109,30 +120,57 @@ class SidebarTreeProvider {
      */
     async getChildren(element) {
         if (!element) {
+            const children = [];
+            
+            // Add project selection node if multiple projects found
+            if (this.availableProjects.length > 1) {
+                const activeProjectName = this.activeProjectPath ? 
+                    this.projectService.getProjectName(this.activeProjectPath) : 'Workspace Root';
+                children.push(new ProjectSelectionNode(activeProjectName, this.availableProjects.length));
+            }
+            
             // Get current locale and workspace path
             const currentLocale = this.localeService.getCurrentLocale();
             const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
             
             if (!workspaceFolder) {
-                return this.translationData.map(keyData => 
+                children.push(...this.translationData.map(keyData => 
                     new TranslationKeyNode(keyData.key, keyData.locales.length)
-                );
+                ));
+                return children;
             }
             
             const workspacePath = workspaceFolder.uri.fsPath;
+            const projectPath = this.activeProjectPath || workspacePath;
             
             // Load current locale translations
-            const currentTranslations = await this.translationService.loadTranslationsForLocale(workspacePath, currentLocale);
+            const currentTranslations = await this.translationService.loadTranslationsForLocale(projectPath, currentLocale);
             
             // Return translation keys with current locale values
-            return this.translationData.map(keyData => {
+            children.push(...this.translationData.map(keyData => {
                 let currentValue = null;
                 if (currentTranslations) {
                     currentValue = this.translationService.getTranslation(currentTranslations, keyData.key);
                 }
                 
                 return new TranslationKeyNode(keyData.key, keyData.locales.length, currentValue);
-            });
+            }));
+            
+            return children;
+        }
+
+        if (element instanceof ProjectSelectionNode) {
+            // Return available projects for selection
+            const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspacePath) return [];
+            
+            return this.availableProjects.map(project => 
+                new ProjectOptionNode(
+                    project.name,
+                    project.relativePath,
+                    project.path === this.activeProjectPath
+                )
+            );
         }
 
         if (element instanceof TranslationKeyNode) {
@@ -155,6 +193,39 @@ class SidebarTreeProvider {
 }
 
 // FileContextNode removed - using proper tree view title instead
+
+/**
+ * Tree node for project selection dropdown
+ */
+class ProjectSelectionNode extends vscode.TreeItem {
+    constructor(activeProjectName, projectCount) {
+        super(`$(folder-active) ${activeProjectName}`, vscode.TreeItemCollapsibleState.Collapsed);
+        this.description = `${projectCount} projects found`;
+        this.contextValue = 'projectSelection';
+        this.tooltip = 'Click to change active project';
+    }
+}
+
+/**
+ * Tree node for individual project option
+ */
+class ProjectOptionNode extends vscode.TreeItem {
+    constructor(name, relativePath, isActive) {
+        const label = isActive ? `$(check) ${name}` : name;
+        super(label, vscode.TreeItemCollapsibleState.None);
+        this.description = relativePath;
+        this.contextValue = 'projectOption';
+        this.tooltip = `Select ${name} as active project`;
+        
+        if (!isActive) {
+            this.command = {
+                command: 'elementaryWatson.selectProject',
+                title: 'Select Project',
+                arguments: [relativePath]
+            };
+        }
+    }
+}
 
 /**
  * Tree node for translation keys
@@ -210,4 +281,4 @@ class TranslationItemNode extends vscode.TreeItem {
     }
 }
 
-module.exports = { SidebarTreeProvider, TranslationKeyNode, TranslationItemNode }; 
+module.exports = { SidebarTreeProvider, TranslationKeyNode, TranslationItemNode, ProjectSelectionNode, ProjectOptionNode }; 

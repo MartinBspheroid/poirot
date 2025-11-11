@@ -4,6 +4,7 @@ const path = require('path');
 const { humanId } = require('human-id');
 const { LocaleService } = require('../locale/service');
 const { TranslationRepository } = require('../translation/repository');
+const { ProjectService } = require('../project/service');
 
 /**
  * Service for extracting strings and adding them to locale files
@@ -12,6 +13,7 @@ class ExtractionService {
     constructor() {
         this.localeService = new LocaleService();
         this.translationRepository = new TranslationRepository();
+        this.projectService = new ProjectService();
     }
 
     /**
@@ -118,7 +120,7 @@ class ExtractionService {
             // Check in base locale first
             const baseTranslationPath = this.localeService.resolveTranslationPath(workspacePath, baseLocale);
             const baseTranslations = await this.translationRepository.loadTranslations(baseTranslationPath, baseLocale);
-            
+
             if (baseTranslations) {
                 const foundKey = this.searchInTranslations(baseTranslations, text);
                 if (foundKey) {
@@ -240,10 +242,10 @@ class ExtractionService {
 
             // Save base locale first
             await this.updateLocaleFile(workspacePath, baseLocale, key, value);
-            
+
             // Wait 2 seconds as requested
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
             // Save other locales with empty strings
             for (const locale of availableLocales) {
                 if (locale !== baseLocale) {

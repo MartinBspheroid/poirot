@@ -1,11 +1,15 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
+const { ProjectService } = require('../project/service');
 
 /**
  * Service for managing locale configuration and inlang project settings
  */
 class LocaleService {
+    constructor() {
+        this.projectService = new ProjectService();
+    }
     /**
      * Get the current locale from various sources in priority order
      * @returns {string} The current locale code
@@ -32,13 +36,15 @@ class LocaleService {
 
     /**
      * Load inlang project settings
-     * @param {string} workspacePath 
+     * @param {string} workspacePath The workspace root path
      * @returns {Object|null} The inlang settings or null if not found
      */
     loadInlangSettings(workspacePath) {
         try {
-            const inlangSettingsPath = path.join(workspacePath, 'project.inlang', 'settings.json');
-            
+            // Get the active project path
+            const projectPath = this.projectService.getActiveProjectPath(workspacePath);
+            const inlangSettingsPath = path.join(projectPath, 'project.inlang', 'settings.json');
+
             if (!fs.existsSync(inlangSettingsPath)) {
                 console.log(`📝 No inlang settings found at: ${inlangSettingsPath}`);
                 return null;
@@ -46,9 +52,9 @@ class LocaleService {
 
             const fileContent = fs.readFileSync(inlangSettingsPath, 'utf8');
             const settings = JSON.parse(fileContent);
-            
+
             console.log(`📖 Loaded inlang settings from: ${path.basename(inlangSettingsPath)}`);
-            
+
             return settings;
         } catch (error) {
             console.log(`❌ Failed to load inlang settings: ${error.message}`);
@@ -58,46 +64,48 @@ class LocaleService {
 
     /**
      * Get the path pattern for translation files
-     * @param {string} workspacePath 
+     * @param {string} workspacePath The workspace root path
      * @returns {string} The path pattern for translation files
      */
     getTranslationPathPattern(workspacePath) {
         const inlangSettings = this.loadInlangSettings(workspacePath);
-        
-        if (inlangSettings && 
-            inlangSettings['plugin.inlang.messageFormat'] && 
+
+        if (inlangSettings &&
+            inlangSettings['plugin.inlang.messageFormat'] &&
             inlangSettings['plugin.inlang.messageFormat'].pathPattern) {
             return inlangSettings['plugin.inlang.messageFormat'].pathPattern;
         }
-        
+
         // Fallback to default pattern
         return './messages/{locale}.json';
     }
 
     /**
      * Resolve the actual translation file path
-     * @param {string} workspacePath 
-     * @param {string} locale 
+     * @param {string} workspacePath The workspace root path
+     * @param {string} locale
      * @returns {string} The resolved path to the translation file
      */
     resolveTranslationPath(workspacePath, locale) {
+        // Get the active project path
+        const projectPath = this.projectService.getActiveProjectPath(workspacePath);
         const pathPattern = this.getTranslationPathPattern(workspacePath);
-        
+
         // Replace {locale} placeholder with actual locale
         const relativePath = pathPattern.replace('{locale}', locale);
-        
-        // Resolve relative path from workspace root
+
+        // Resolve relative path from project root
         let resolvedPath;
         if (relativePath.startsWith('./')) {
-            resolvedPath = path.join(workspacePath, relativePath.substring(2));
+            resolvedPath = path.join(projectPath, relativePath.substring(2));
         } else if (relativePath.startsWith('/')) {
-            resolvedPath = path.join(workspacePath, relativePath.substring(1));
+            resolvedPath = path.join(projectPath, relativePath.substring(1));
         } else {
-            resolvedPath = path.join(workspacePath, relativePath);
+            resolvedPath = path.join(projectPath, relativePath);
         }
-        
+
         console.log(`🔍 Resolved translation path for locale '${locale}': ${resolvedPath}`);
-        
+
         return resolvedPath;
     }
 

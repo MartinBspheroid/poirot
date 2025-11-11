@@ -5,6 +5,7 @@ const { LocaleService } = require('../locale/service');
 const { ExtractionService } = require('../extraction/service');
 const { SidebarService } = require('../sidebar/service');
 const { SidebarTreeProvider } = require('../sidebar/provider');
+const { ProjectService } = require('../project/service');
 
 /**
  * Extension activator that manages the lifecycle and event handling
@@ -15,6 +16,7 @@ class ExtensionActivator {
         this.localeService = new LocaleService();
         this.extractionService = new ExtractionService();
         this.sidebarService = new SidebarService();
+        this.projectService = new ProjectService();
         this.sidebarTreeProvider = new SidebarTreeProvider(this.sidebarService);
         this.disposables = [];
         this.treeView = null; // Tree view instance for title updates
@@ -116,6 +118,9 @@ class ExtensionActivator {
 
         // Register the extract text command
         this.registerExtractTextCommand();
+
+        // Register project selection command
+        this.registerProjectSelectionCommand();
 
         // Register sidebar commands
         this.registerSidebarCommands();
@@ -226,6 +231,55 @@ class ExtensionActivator {
     }
 
     /**
+     * Register the project selection command
+     */
+    registerProjectSelectionCommand() {
+        const selectProjectCommand = vscode.commands.registerCommand('elementaryWatson.selectProject', async (projectRelativePath) => {
+            try {
+                if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+                    vscode.window.showErrorMessage('No workspace folder found');
+                    return;
+                }
+
+                const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+                let selectedPath;
+
+                if (projectRelativePath) {
+                    // Specific project was requested (from tree view)
+                    selectedPath = path.join(workspacePath, projectRelativePath);
+                } else {
+                    // Show project selection dialog
+                    selectedPath = await this.projectService.showProjectSelection(workspacePath);
+                }
+
+                if (selectedPath) {
+                    // Save the active project setting
+                    await this.projectService.setActiveProject(workspacePath, selectedPath);
+
+                    // Refresh everything with the new project context
+                    await this.processActiveEditor();
+                    
+                    // Refresh sidebar
+                    const activeEditor = vscode.window.activeTextEditor;
+                    if (activeEditor) {
+                        await this.sidebarTreeProvider.refresh(activeEditor.document);
+                    }
+                    
+                    // Update translation file watchers for the new project
+                    await this.setupTranslationFileWatchers();
+                    
+                    vscode.window.showInformationMessage(`Active project changed to: ${this.projectService.getProjectName(selectedPath)}`);
+                }
+            } catch (error) {
+                console.error('Error selecting project:', error);
+                vscode.window.showErrorMessage(`Failed to select project: ${error.message}`);
+            }
+        });
+
+        this.disposables.push(selectProjectCommand);
+    }
+
+    /**
      * Register the translation label click command
      */
     registerTranslationLabelClickCommand() {
@@ -293,22 +347,22 @@ class ExtensionActivator {
         try {
             // Clear existing watchers
             this.disposeTranslationFileWatchers();
-            
+
             if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
                 return;
             }
 
             const workspaceFolder = vscode.workspace.workspaceFolders[0];
             const workspacePath = workspaceFolder.uri.fsPath;
-            
+
             // Get available locales
             const availableLocales = await this.sidebarService.getAvailableLocales(workspacePath);
-            
+
             // Create file watchers for each locale
             for (const locale of availableLocales) {
                 const translationPath = this.localeService.resolveTranslationPath(workspacePath, locale);
                 const relativePath = path.relative(workspacePath, translationPath);
-                
+
                 // Create a file system watcher for this specific translation file
                 const watcher = vscode.workspace.createFileSystemWatcher(
                     new vscode.RelativePattern(workspaceFolder, relativePath),
@@ -316,28 +370,28 @@ class ExtensionActivator {
                     false, // Don't ignore changes
                     false  // Don't ignore deletes
                 );
-                
+
                 // Handle file changes
                 watcher.onDidChange(async () => {
                     await this.handleTranslationFileChange(locale);
                 });
-                
+
                 // Handle file creation (useful for new locale files)
                 watcher.onDidCreate(async () => {
                     await this.handleTranslationFileChange(locale);
                 });
-                
+
                 // Handle file deletion
                 watcher.onDidDelete(async () => {
                     await this.handleTranslationFileChange(locale);
                 });
-                
+
                 this.translationFileWatchers.push(watcher);
                 this.disposables.push(watcher);
-                
+
                 console.log(`🔍 Watching translation file: ${relativePath}`);
             }
-            
+
         } catch (error) {
             console.error('Error setting up translation file watchers:', error);
         }
@@ -350,27 +404,29 @@ class ExtensionActivator {
     async handleTranslationFileChange(locale) {
         try {
             console.log(`🔄 Translation file changed for locale: ${locale}`);
-            
+
             const activeEditor = vscode.window.activeTextEditor;
-            
+            const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspacePath) return;
+
             // Check if sidebar has preserved context (from a previous non-translation file)
-            const hasPreservedContext = this.sidebarTreeProvider.currentFilePath && 
-                                      this.sidebarTreeProvider.translationData.length > 0;
-            
+            const hasPreservedContext = this.sidebarTreeProvider.currentFilePath &&
+                                       this.sidebarTreeProvider.translationData.length > 0;
+
             if (hasPreservedContext) {
                 // Refresh the preserved context with updated translation values
                 const preservedFilePath = this.sidebarTreeProvider.currentFilePath;
                 try {
                     const preservedDocument = await vscode.workspace.openTextDocument(preservedFilePath);
-                    
+
                     // Update editor decorations if the preserved file is currently active
                     if (activeEditor && activeEditor.document.uri.fsPath === preservedFilePath) {
                         await this.editorService.processDocument(activeEditor.document);
                     }
-                    
+
                     // Force refresh sidebar with the preserved context to get updated translation values
                     await this.sidebarTreeProvider.refresh(preservedDocument, true);
-                    
+
                     console.log(`📋 Updated preserved context for: ${path.basename(preservedFilePath)}`);
                 } catch (error) {
                     console.error('Error refreshing preserved context:', error);
@@ -384,7 +440,7 @@ class ExtensionActivator {
                     await this.sidebarTreeProvider.refresh(activeEditor.document);
                 }
             }
-            
+
         } catch (error) {
             console.error('Error handling translation file change:', error);
         }
