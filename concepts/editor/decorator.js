@@ -40,8 +40,8 @@ class EditorDecorator {
             let contentText, color, borderColor;
             
             if (result.warningType === 'noLocale') {
-                // Red alert for no locale defined
-                contentText = 'No locale defined';
+                // Red alert for missing translation
+                contentText = '<missing>';
                 color = '#cc6666';
                 borderColor = '#cc6666';
             } else if (result.warningType === 'missingLocale') {

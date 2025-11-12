@@ -48,9 +48,15 @@ class TranslationKeysProvider {
                 displayPath = path.relative(workspaceFolder.uri.fsPath, this.currentFilePath);
             }
 
-            // Ensure path starts with / for consistent display
-            if (!displayPath.startsWith('/')) {
-                displayPath = '/' + displayPath;
+            // Truncate to last 4 path segments if longer
+            const pathSegments = displayPath.split(path.sep).filter(s => s);
+            if (pathSegments.length > 4) {
+                displayPath = '.../' + pathSegments.slice(-4).join('/');
+            } else {
+                // Ensure path starts with / for consistent display
+                if (!displayPath.startsWith('/')) {
+                    displayPath = '/' + displayPath;
+                }
             }
 
             const keyCount = this.translationData.length;
@@ -231,11 +237,9 @@ class TranslationItemNode extends vscode.TreeItem {
             arguments: [this.workspacePath, this.locale, this.key]
         };
 
-        // Show empty values differently and add navigation hint
+        // Show empty values differently
         if (!value || value.trim() === '') {
-            this.description = '(empty) → click to navigate';
-        } else {
-            this.description = '→ click to navigate';
+            this.description = '(empty)';
         }
     }
 }

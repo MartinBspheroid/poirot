@@ -110,7 +110,7 @@ class ProjectSelectionNode extends vscode.TreeItem {
  */
 class ProjectOptionNode extends vscode.TreeItem {
     constructor(name, relativePath, isActive) {
-        const label = isActive ? `$(check) ${name}` : name;
+        const label = isActive ? `● ${name}` : name;
         super(label, vscode.TreeItemCollapsibleState.None);
         this.description = relativePath;
         this.contextValue = 'projectOption';
