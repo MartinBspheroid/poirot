@@ -78,12 +78,12 @@
         {
           "id": "poirotProjectSelector",
           "name": "Project Selection",
-          "when": "elementaryWatson.showProjectSelector"
+          "when": "poirot.showProjectSelector"
         },
         {
           "id": "poirotTranslationKeys",
           "name": "Translation Keys",
-          "when": "elementaryWatson.showSidebar"
+          "when": "poirot.showSidebar"
         }
       ]
     },
