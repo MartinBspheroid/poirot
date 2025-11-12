@@ -9,120 +9,125 @@ import { TranslationCodeLensProvider } from './codelens';
  * Service for processing VS Code documents and managing translation displays
  */
 export class EditorService {
-	private translationService: TranslationService;
-	private localeService: LocaleService;
-	private projectService: ProjectService;
-	private editorDecorator: EditorDecorator;
-	private codeLensProvider: TranslationCodeLensProvider;
+  private translationService: TranslationService;
+  private localeService: LocaleService;
+  private projectService: ProjectService;
+  private editorDecorator: EditorDecorator;
+  private codeLensProvider: TranslationCodeLensProvider;
 
-	constructor() {
-		this.translationService = new TranslationService();
-		this.localeService = new LocaleService();
-		this.projectService = new ProjectService();
-		this.editorDecorator = new EditorDecorator();
-		this.codeLensProvider = new TranslationCodeLensProvider();
-	}
+  constructor() {
+    this.translationService = new TranslationService();
+    this.localeService = new LocaleService();
+    this.projectService = new ProjectService();
+    this.editorDecorator = new EditorDecorator();
+    this.codeLensProvider = new TranslationCodeLensProvider();
+  }
 
-	/**
-	 * Check if document is supported (JavaScript, JavaScript with JSX, TypeScript, TypeScript with JSX, or Svelte)
-	 * @param document
-	 * @returns True if the document is supported
-	 */
-	isSupportedDocument(document: vscode.TextDocument): boolean {
-		const languageId = document.languageId;
-		return ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'svelte'].includes(languageId);
-	}
+  /**
+   * Check if document is supported (JavaScript, JavaScript with JSX, TypeScript, TypeScript with JSX, or Svelte)
+   * @param document
+   * @returns True if the document is supported
+   */
+  isSupportedDocument(document: vscode.TextDocument): boolean {
+    const languageId = document.languageId;
+    return ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'svelte'].includes(
+      languageId
+    );
+  }
 
-	/**
-	 * Process a document to find and display translations
-	 * @param document The VS Code document to process
-	 */
-	async processDocument(document: vscode.TextDocument): Promise<void> {
-		try {
-			const editor = vscode.window.visibleTextEditors.find((e) => e.document === document);
-			if (!editor) return;
+  /**
+   * Process a document to find and display translations
+   * @param document The VS Code document to process
+   */
+  async processDocument(document: vscode.TextDocument): Promise<void> {
+    try {
+      const editor = vscode.window.visibleTextEditors.find((e) => e.document === document);
+      if (!editor) return;
 
-			// Clear previous decorations
-			this.editorDecorator.clearDecorations(editor);
+      // Clear previous decorations
+      this.editorDecorator.clearDecorations(editor);
 
-			const text = document.getText();
-			const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-			if (!workspaceFolder) return;
+      const text = document.getText();
+      const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+      if (!workspaceFolder) return;
 
-			const workspacePath = workspaceFolder.uri.fsPath;
+      const workspacePath = workspaceFolder.uri.fsPath;
 
-			// Find all m.methodName() calls
-			const translationCalls = this.translationService.findTranslationCalls(text);
-			if (translationCalls.length === 0) {
-				// Clear CodeLens when no translation calls are found
-				this.codeLensProvider.updateTranslationResults(document, []);
-				return;
-			}
+      // Find all m.methodName() calls
+      const translationCalls = this.translationService.findTranslationCalls(text);
+      if (translationCalls.length === 0) {
+        // Clear CodeLens when no translation calls are found
+        this.codeLensProvider.updateTranslationResults(document, []);
+        return;
+      }
 
-			// Load translations using the current locale
-			const currentLocale = this.localeService.getCurrentLocale();
-			const translations = await this.translationService.loadTranslationsForLocale(workspacePath, currentLocale);
+      // Load translations using the current locale
+      const currentLocale = this.localeService.getCurrentLocale();
+      const translations = await this.translationService.loadTranslationsForLocale(
+        workspacePath,
+        currentLocale
+      );
 
-			// Process translation calls to get resolved values with warning states
-			// Note: We process even if translations is null to show warning labels
-			const translationResults = await this.translationService.processTranslationCallsWithWarnings(
-				translationCalls,
-				translations || {},
-				workspacePath,
-				currentLocale
-			);
+      // Process translation calls to get resolved values with warning states
+      // Note: We process even if translations is null to show warning labels
+      const translationResults = await this.translationService.processTranslationCallsWithWarnings(
+        translationCalls,
+        translations || {},
+        workspacePath,
+        currentLocale
+      );
 
-			if (translationResults.length === 0) {
-				// Clear CodeLens when no translation results are found
-				this.codeLensProvider.updateTranslationResults(document, []);
-				return;
-			}
+      if (translationResults.length === 0) {
+        // Clear CodeLens when no translation results are found
+        this.codeLensProvider.updateTranslationResults(document, []);
+        return;
+      }
 
-			// Create and apply decorations for translation values
-			const decorations = this.editorDecorator.createDecorations(document, translationResults);
-			this.editorDecorator.applyDecorations(editor, decorations);
+      // Create and apply decorations for translation values
+      const decorations = this.editorDecorator.createDecorations(document, translationResults);
+      this.editorDecorator.applyDecorations(editor, decorations);
 
-			// Update CodeLens provider for clickable navigation
-			this.codeLensProvider.updateTranslationResults(document, translationResults);
+      // Update CodeLens provider for clickable navigation
+      this.codeLensProvider.updateTranslationResults(document, translationResults);
 
-			// Log the results
-			const translationValues = translationResults.map((result) => {
-				if (result.warningType === 'noLocale') {
-					return `${result.methodName}: ❌ no locale defined`;
-				} else if (result.warningType === 'missingLocale') {
-					return `${result.methodName}: ⚠️ "${result.translationValue}" (missing in ${currentLocale}, found in ${result.foundInLocale})`;
-				} else {
-					return `${result.methodName}: "${result.translationValue}"`;
-				}
-			});
-			console.log(
-				`💡 Updated translation labels and navigation (${currentLocale}): ${translationValues.join(', ')}`
-			);
-		} catch (error) {
-			console.error('Error processing document:', error);
-		}
-	}
+      // Log the results
+      const translationValues = translationResults.map((result) => {
+        if (result.warningType === 'noLocale') {
+          return `${result.methodName}: ❌ no locale defined`;
+        } else if (result.warningType === 'missingLocale') {
+          return `${result.methodName}: ⚠️ "${result.translationValue}" (missing in ${currentLocale}, found in ${result.foundInLocale})`;
+        } else {
+          return `${result.methodName}: "${result.translationValue}"`;
+        }
+      });
+      console.log(
+        `💡 Updated translation labels and navigation (${currentLocale}): ${translationValues.join(', ')}`
+      );
+    } catch (error) {
+      console.error('Error processing document:', error);
+    }
+  }
 
-	/**
-	 * Get the editor decorator instance
-	 * @returns The editor decorator
-	 */
-	getDecorator(): EditorDecorator {
-		return this.editorDecorator;
-	}
+  /**
+   * Get the editor decorator instance
+   * @returns The editor decorator
+   */
+  getDecorator(): EditorDecorator {
+    return this.editorDecorator;
+  }
 
-	/**
-	 * Get the CodeLens provider instance
-	 * @returns The CodeLens provider instance
-	 */
-	getCodeLensProvider(): TranslationCodeLensProvider {
-		return this.codeLensProvider;
-	}
+  /**
+   * Get the CodeLens provider instance
+   * @returns The CodeLens provider instance
+   */
+  getCodeLensProvider(): TranslationCodeLensProvider {
+    return this.codeLensProvider;
+  }
 
-	/**
-	 * Dispose of the service resources
-	 */
-	dispose(): void {
-		this.editorDecorator.dispose();
-	}
+  /**
+   * Dispose of the service resources
+   */
+  dispose(): void {
+    this.editorDecorator.dispose();
+  }
 }

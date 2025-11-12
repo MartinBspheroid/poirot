@@ -9,12 +9,12 @@ const extensionActivator = new ExtensionActivator();
  * Your extension is activated the very first time the command is executed
  */
 export function activate(context: vscode.ExtensionContext): void {
-	extensionActivator.activate(context);
+  extensionActivator.activate(context);
 }
 
 /**
  * This method is called when your extension is deactivated
  */
 export function deactivate(): void {
-	extensionActivator.deactivate();
+  extensionActivator.deactivate();
 }

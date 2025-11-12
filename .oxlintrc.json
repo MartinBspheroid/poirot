@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn"],
+  "env": {
+    "node": true
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unused-vars": "warn",
+    "typescript/consistent-type-definitions": ["error", "type"],
+    "typescript/prefer-as-const": "error",
+    "typescript/no-non-null-assertion": "warn",
+    "unicorn/prefer-top-level-await": "off",
+    "unicorn/no-process-exit": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["test/**/*.ts"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/no-non-null-assertion": "off"
+      }
+    }
+  ]
+}
